@@ -1,0 +1,7 @@
+type: module
+name: Migrate Content Taxonomy
+description: 'Migrate content taxonomy fields to D8'
+package: Migration
+core: 8.x
+dependencies:
+  - migrate
