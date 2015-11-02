@@ -12,7 +12,6 @@ use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Entity\MigrationInterface;
 use Drupal\migrate\MigrateExecutableInterface;
 use Drupal\migrate\MigrateSkipRowException;
-use Drupal\migrate\Plugin\MigrateProcessInterface;
 use Drupal\migrate\Row;
 use Drupal\migrate_drupal\Plugin\migrate\cckfield\CckFieldPluginBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -25,60 +24,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   }
  * )
  */
-class ContentTaxonomyField extends CckFieldPluginBase implements ContainerFactoryPluginInterface {
-
-  /**
-   * The migration process plugin, configured for lookups in d6_file.
-   *
-   * @var \Drupal\migrate\Plugin\MigrateProcessInterface
-   */
-  protected $migrationPlugin;
-
-  /**
-   * Constructs a CckFile plugin instance.
-   *
-   * @param array $configuration
-   *   The plugin configuration.
-   * @param string $plugin_id
-   *   The plugin ID.
-   * @param mixed $plugin_definition
-   *   The plugin definition.
-   * @param \Drupal\migrate\Entity\MigrationInterface $migration
-   *   The current migration.
-   * @param \Drupal\migrate\Plugin\MigrateProcessInterface $migration_plugin
-   *   An instance of the 'migration' process plugin.
-   */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, MigrationInterface $migration, MigrateProcessInterface $migration_plugin) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition);
-    $this->migration = $migration;
-    $this->migrationPlugin = $migration_plugin;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition, MigrationInterface $migration = NULL) {
-    $debug = 1;
-
-    // Configure the migration process plugin to look up migrated IDs from
-    // the d6_file migration.
-    $migration_plugin_configuration = [
-      'source' => ['vid'],
-      'migration' => 'd6_taxonomy_vocabulary',
-    ];
-
-    if (!isset($migration)) {
-      $migration = Migration::create();
-    }
-
-    return new static(
-      $configuration,
-      $plugin_id,
-      $plugin_definition,
-      $migration,
-      $container->get('plugin.manager.migrate.process')->createInstance('migration', $migration_plugin_configuration, $migration)
-    );
-  }
+class ContentTaxonomyField extends CckFieldPluginBase {
 
   /**
    * {@inheritdoc}
@@ -94,8 +40,22 @@ class ContentTaxonomyField extends CckFieldPluginBase implements ContainerFactor
    * {@inheritdoc}
    */
   public function processCckFieldValues(MigrationInterface $migration, $field_name, $data) {
-    // @todo adjust field formatter settings
-    $debug = 1;
+    $process = [
+      'plugin' => 'iterator',
+      'source' => $field_name,
+      'process' => [
+        'target_id' => [
+          'plugin' => 'migration',
+          'migration' => 'd6_taxonomy_term',
+          'source' => 'value'
+        ],
+      ]
+    ];
+    $migration->mergeProcessOfProperty($field_name, $process);
+
+    $migration_dependencies = $migration->get('migration_dependencies');
+    $migration_dependencies['required'][] = 'd6_taxonomy_term';
+    $migration->set('migration_dependencies', $migration_dependencies);
   }
 
   /**
@@ -126,7 +86,7 @@ class ContentTaxonomyField extends CckFieldPluginBase implements ContainerFactor
     $settings = [];
 
     try {
-      $vocabulary = $this->migrationPlugin->transform($field_settings['vid'], $migrate_executable, $row, $destination_property);
+      $vocabulary = $this->getTaxonomyVocabularyMigration()->transform($field_settings['vid'], $migrate_executable, $row, $destination_property);
       $settings['handler_settings']['target_bundles'][$vocabulary] = $vocabulary;
     }
     catch (MigrateSkipRowException $e) {
@@ -134,6 +94,30 @@ class ContentTaxonomyField extends CckFieldPluginBase implements ContainerFactor
     }
 
     return $settings;
+  }
+
+  /**
+   * Initialize the d6_taxonomy_vocabulary migration.
+   *
+   * @return \Drupal\migrate\Plugin\MigrateProcessInterface
+   */
+  protected function getTaxonomyVocabularyMigration() {
+    if (!isset($this->migrationPlugin)) {
+
+      // Configure the migration process plugin to look up migrated IDs from
+      // the d6_file migration.
+      $migration_plugin_configuration = [
+        'source' => ['vid'],
+        'migration' => 'd6_taxonomy_vocabulary',
+      ];
+
+      $migration = Migration::create();
+
+      $this->migrationPlugin = \Drupal::service('plugin.manager.migrate.process')
+        ->createInstance('migration', $migration_plugin_configuration, $migration);
+    }
+
+    return $this->migrationPlugin;
   }
 
 }
