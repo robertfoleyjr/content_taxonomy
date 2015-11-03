@@ -45,9 +45,15 @@ class ContentTaxonomyField extends CckFieldPluginBase {
       'source' => $field_name,
       'process' => [
         'target_id' => [
-          'plugin' => 'migration',
-          'migration' => 'd6_taxonomy_term',
-          'source' => 'value'
+          [
+            'plugin' => 'skip_on_empty',
+            'method' => 'process',
+            'source' => 'value'
+          ],
+          [
+            'plugin' => 'migration',
+            'migration' => 'd6_taxonomy_term'
+          ]
         ],
       ]
     ];
