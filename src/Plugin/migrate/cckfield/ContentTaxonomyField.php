@@ -78,8 +78,7 @@ class ContentTaxonomyField extends CckFieldPluginBase {
   /**
    * {@inheritdoc}
    */
-  public function processFieldStorageSettings($value) {
-    $settings = [];
+  public function transformFieldStorageSettings(Row $row) {
     $settings['target_type'] = 'taxonomy_term';
     return $settings;
   }
