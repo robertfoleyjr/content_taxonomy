@@ -7,14 +7,12 @@
 
 namespace Drupal\content_taxonomy\Plugin\migrate\cckfield;
 
-use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Drupal\Core\Field\Plugin\migrate\cckfield\ReferenceBase;
 use Drupal\migrate\Entity\Migration;
 use Drupal\migrate\Entity\MigrationInterface;
-use Drupal\migrate\MigrateExecutableInterface;
-use Drupal\migrate\MigrateSkipRowException;
+use Drupal\migrate\MigrateExecutable;
+use Drupal\migrate\MigrateMessage;
 use Drupal\migrate\Row;
-use Drupal\migrate_drupal\Plugin\migrate\cckfield\CckFieldPluginBase;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * @MigrateCckField(
@@ -24,7 +22,19 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   }
  * )
  */
-class ContentTaxonomyField extends CckFieldPluginBase {
+class ContentTaxonomyField extends ReferenceBase {
+
+  /**
+   * @var string
+   */
+  protected $bundleMigration = 'd6_taxonomy_vocabulary';
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function entityId() {
+    return 'tid';
+  }
 
   /**
    * {@inheritdoc}
@@ -71,7 +81,7 @@ class ContentTaxonomyField extends CckFieldPluginBase {
     parent::processField($migration);
 
     $migration_dependencies = $migration->get('migration_dependencies');
-    $migration_dependencies['required'][] = 'd6_taxonomy_vocabulary';
+    $migration_dependencies['required'][] = $this->bundleMigration;
     $migration->set('migration_dependencies', $migration_dependencies);
   }
 
@@ -86,43 +96,40 @@ class ContentTaxonomyField extends CckFieldPluginBase {
   /**
    * {@inheritdoc}
    */
-  public function processFieldSettings($value, MigrateExecutableInterface $migrate_executable, Row $row, $destination_property) {
-    list($widget_type, $widget_settings, $field_settings, $source_field_type) = $value;
-    $settings = [];
-
-    try {
-      $vocabulary = $this->getTaxonomyVocabularyMigration()->transform($field_settings['vid'], $migrate_executable, $row, $destination_property);
-      $settings['handler_settings']['target_bundles'][$vocabulary] = $vocabulary;
-    }
-    catch (MigrateSkipRowException $e) {
-
-    }
-
+  public function transformFieldInstanceSettings(Row $row) {
+    $source_settings = $row->getSourceProperty('global_settings');
+    $settings['handler'] = 'default:taxonomy_term';
+    $settings['handler_settings']['target_bundles'] = $this->migrateTaxonomyVocabularies([$source_settings['vid']]);
     return $settings;
   }
 
   /**
-   * Initialize the d6_taxonomy_vocabulary migration.
+   * Look up migrated vocabulary IDs from the d6_taxonomy_vocabulary migration.
    *
-   * @return \Drupal\migrate\Plugin\MigrateProcessInterface
+   * @param $source_ids
+   *   The source role IDs.
+   *
+   * @return array
+   *   The migrated role IDs.
    */
-  protected function getTaxonomyVocabularyMigration() {
-    if (!isset($this->migrationPlugin)) {
+  protected function migrateTaxonomyVocabularies($source_ids) {
+    // Configure the migration process plugin to look up migrated IDs from
+    // the d6_user_role migration.
+    $migration_plugin_configuration = [
+      'migration' => $this->bundleMigration,
+    ];
 
-      // Configure the migration process plugin to look up migrated IDs from
-      // the d6_file migration.
-      $migration_plugin_configuration = [
-        'source' => ['vid'],
-        'migration' => 'd6_taxonomy_vocabulary',
-      ];
+    $migration = Migration::create();
+    $executable = new MigrateExecutable($migration, new MigrateMessage());
+    $row = new Row([], []);
+    $migrationPlugin = $this->migratePluginManager
+      ->createInstance('migration', $migration_plugin_configuration, $migration);
 
-      $migration = Migration::create();
-
-      $this->migrationPlugin = \Drupal::service('plugin.manager.migrate.process')
-        ->createInstance('migration', $migration_plugin_configuration, $migration);
+    $ids = [];
+    foreach ($source_ids as $role) {
+      $ids[] = $migrationPlugin->transform($role, $executable, $row, NULL);
     }
-
-    return $this->migrationPlugin;
+    return array_combine($ids, $ids);
   }
 
 }
