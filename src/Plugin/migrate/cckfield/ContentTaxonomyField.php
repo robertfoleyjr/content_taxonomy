@@ -155,8 +155,8 @@ class ContentTaxonomyField extends ReferenceBase {
    * @return \Drupal\migrate\Entity\MigrationInterface
    */
   protected function addMigrationDependencies(MigrationInterface $migration) {
-    $migration_dependencies = $migration->get('migration_dependencies');
-    if (!in_array($this->bundleMigration, $migration_dependencies['require'])) {
+    $migration_dependencies = $migration->getMigrationDependencies();
+    if (!in_array($this->bundleMigration, $migration_dependencies['required'])) {
       $migration_dependencies['required'][] = $this->bundleMigration;
       $migration->set('migration_dependencies', $migration_dependencies);
     }
