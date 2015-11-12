@@ -39,6 +39,18 @@ class ContentTaxonomyField extends ReferenceBase {
   /**
    * {@inheritdoc}
    */
+  public function getFieldWidgetMap() {
+    // @TODO: Find widget for content_taxonomy_tree'
+    return [
+      'content_taxonomy_autocomplete' => 'entity_reference_autocomplete',
+      'content_taxonomy_options' => 'options_buttons',
+      'content_taxonomy_select' => 'options_select',
+    ];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function getFieldFormatterMap() {
     return [
       'content_taxonomy_formatter_default' => 'entity_reference_label',
