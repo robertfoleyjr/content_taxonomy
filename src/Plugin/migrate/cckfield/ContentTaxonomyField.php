@@ -79,10 +79,15 @@ class ContentTaxonomyField extends ReferenceBase {
    */
   public function processField(MigrationInterface $migration) {
     parent::processField($migration);
+    $this->addMigrationDependencies($migration);
+  }
 
-    $migration_dependencies = $migration->get('migration_dependencies');
-    $migration_dependencies['required'][] = $this->bundleMigration;
-    $migration->set('migration_dependencies', $migration_dependencies);
+  /**
+   * {@inheritdoc}
+   */
+  public function processFieldInstance(MigrationInterface $migration) {
+    parent::processFieldInstance($migration);
+    $this->addMigrationDependencies($migration);
   }
 
   /**
@@ -130,6 +135,19 @@ class ContentTaxonomyField extends ReferenceBase {
       $ids[] = $migrationPlugin->transform($role, $executable, $row, NULL);
     }
     return array_combine($ids, $ids);
+  }
+
+  /**
+   * @param \Drupal\migrate\Entity\MigrationInterface $migration
+   *
+   * @return \Drupal\migrate\Entity\MigrationInterface
+   */
+  protected function addMigrationDependencies(MigrationInterface $migration) {
+    $migration_dependencies = $migration->get('migration_dependencies');
+    if (!in_array($this->bundleMigration, $migration['require'])) {
+      $migration_dependencies['required'][] = $this->bundleMigration;
+      $migration->set('migration_dependencies', $migration_dependencies);
+    }
   }
 
 }
